@@ -403,6 +403,9 @@ class SimpleTestResultWrite(TestResultWriterBase):
                 )
                 print(indent(src, DOUBLE_INDENT))
 
+                if err.assert_msg:
+                    self.print_failure_assert_msg(err)
+
                 if err.operator == Comparison.Equals:
                     self.print_failure_equals(err)
         else:
@@ -423,6 +426,12 @@ class SimpleTestResultWrite(TestResultWriterBase):
             show_symbols=self.show_diff_symbols,
         )
         print(indent(diff, DOUBLE_INDENT))
+
+    def print_failure_assert_msg(self, err: TestFailure):
+        print(
+            indent(colored("Message:", color="cyan", attrs=["bold"]), INDENT),
+            f"{err.assert_msg}\n",
+        )
 
     def print_traceback(self, err):
         trace = getattr(err, "__traceback__", "")
