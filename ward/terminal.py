@@ -521,9 +521,12 @@ class SimpleTestResultWrite(TestResultWriterBase):
         if isinstance(test_result.error, TestFailure) or isinstance(
             test_result.error, AssertionError
         ):
+            file_name = os.path.relpath(test_result.error.error_file)
+            if file_name[:2] == '..':
+                file_name = test_result.error.error_file
             print(
                 indent(colored("Location:", color="cyan", attrs=["bold"]), INDENT),
-                f"{test_result.test.path.relative_to(Path.cwd())}:{test_result.error.error_line}",
+                f"{file_name}:{test_result.error.error_line}",
             )
 
     def output_test_run_post_failure_summary(self, test_results: List[TestResult]):
