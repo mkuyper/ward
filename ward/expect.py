@@ -1,7 +1,9 @@
 import inspect
 import types
 from enum import Enum
-from typing import Type, Any, ContextManager, TypeVar, Generic, Optional, cast
+from typing import Type, Any, ContextManager, TypeVar, Generic, Optional, Tuple, cast
+
+from ward.testing import Test
 
 _E = TypeVar("_E", bound=Exception)
 
@@ -48,33 +50,59 @@ class TestFailure(Exception):
         message: str,
         lhs: Any,
         rhs: Any,
-        error_file: str,
         error_line: int,
+        error_loc: Tuple[str,int],
         operator: Comparison,
         assert_msg: str,
     ):
         self.lhs = lhs
         self.rhs = rhs
         self.message = message
-        self.error_file = error_file
         self.error_line = error_line
+        self.error_loc = error_loc
         self.operator = operator
         self.assert_msg = assert_msg
 
 
-def frame_file_line(frame):
+def find_test_object(frame:types.FrameType) -> Optional[Test]:
+    while frame:
+        if frame.f_code.co_name == 'run':
+            test = frame.f_locals.get('self', None)
+            if isinstance(test, Test):
+                return test
+        frame = frame.f_back
+    return None
+
+def find_test_frame(frame:types.FrameType, test:Test) -> Optional[types.FrameType]:
+    while frame:
+        if test.fn.__code__ is frame.f_code:
+            return frame
+        frame = frame.f_back
+    return None
+
+def find_test_line() -> int:
+    frame = inspect.currentframe()
+    test = find_test_object(frame)
+    if test:
+        frame = find_test_frame(frame, test)
+        if frame:
+            return frame.f_lineno
+    return -1
+
+def frame_file_line(frame:types.FrameType) -> Tuple[str, int]:
     return (frame.f_code.co_filename, frame.f_lineno)
 
 
 def assert_equal(lhs_val, rhs_val, assert_msg):
     if lhs_val != rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} does not equal {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.Equals,
             assert_msg=assert_msg,
         )
@@ -82,13 +110,14 @@ def assert_equal(lhs_val, rhs_val, assert_msg):
 
 def assert_not_equal(lhs_val, rhs_val, assert_msg):
     if lhs_val == rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} does equal {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.NotEquals,
             assert_msg=assert_msg,
         )
@@ -96,13 +125,14 @@ def assert_not_equal(lhs_val, rhs_val, assert_msg):
 
 def assert_in(lhs_val, rhs_val, assert_msg):
     if lhs_val not in rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} is not in {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.In,
             assert_msg=assert_msg,
         )
@@ -110,13 +140,14 @@ def assert_in(lhs_val, rhs_val, assert_msg):
 
 def assert_not_in(lhs_val, rhs_val, assert_msg):
     if lhs_val in rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} is in {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.NotIn,
             assert_msg=assert_msg,
         )
@@ -124,13 +155,14 @@ def assert_not_in(lhs_val, rhs_val, assert_msg):
 
 def assert_is(lhs_val, rhs_val, assert_msg):
     if lhs_val is not rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} is not {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.Is,
             assert_msg=assert_msg,
         )
@@ -138,13 +170,14 @@ def assert_is(lhs_val, rhs_val, assert_msg):
 
 def assert_is_not(lhs_val, rhs_val, assert_msg):
     if lhs_val is rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} is {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.IsNot,
             assert_msg=assert_msg,
         )
@@ -152,13 +185,14 @@ def assert_is_not(lhs_val, rhs_val, assert_msg):
 
 def assert_less_than(lhs_val, rhs_val, assert_msg):
     if lhs_val >= rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} >= {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.LessThan,
             assert_msg=assert_msg,
         )
@@ -166,13 +200,14 @@ def assert_less_than(lhs_val, rhs_val, assert_msg):
 
 def assert_less_than_equal_to(lhs_val, rhs_val, assert_msg):
     if lhs_val > rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} > {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.LessThanEqualTo,
             assert_msg=assert_msg,
         )
@@ -180,13 +215,14 @@ def assert_less_than_equal_to(lhs_val, rhs_val, assert_msg):
 
 def assert_greater_than(lhs_val, rhs_val, assert_msg):
     if lhs_val <= rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} <= {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.GreaterThan,
             assert_msg=assert_msg,
         )
@@ -194,13 +230,14 @@ def assert_greater_than(lhs_val, rhs_val, assert_msg):
 
 def assert_greater_than_equal_to(lhs_val, rhs_val, assert_msg):
     if lhs_val < rhs_val:
-        error_file_name, error_line_no = frame_file_line(inspect.currentframe().f_back)
+        error_line_no = find_test_line()
+        error_loc = frame_file_line(inspect.currentframe().f_back)
         raise TestFailure(
             f"{lhs_val} < {rhs_val}",
             lhs=lhs_val,
             rhs=rhs_val,
-            error_file=error_file_name,
             error_line=error_line_no,
+            error_loc=error_loc,
             operator=Comparison.GreaterThanEqualTo,
             assert_msg=assert_msg,
         )
