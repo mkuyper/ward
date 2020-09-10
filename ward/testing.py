@@ -178,10 +178,26 @@ class Test:
             if outcome in (TestOutcome.PASS, TestOutcome.SKIP):
                 result = TestResult(self, outcome)
             else:
-                if isinstance(error, AssertionError):
-                    error.error_line = traceback.extract_tb(
-                        error.__traceback__, limit=-1
-                    )[0].lineno
+                if isinstance(error, Exception):
+                    tb = error.__traceback__
+                    # get exception location, if not already set
+                    if not hasattr(error, 'error_loc'):
+                        fs = traceback.extract_tb(tb, limit=-1)[0]
+                        error.error_loc = fs.filename, fs.lineno
+                    # find line in test case
+                    for frame, *_ in traceback.walk_tb(tb):
+                        if frame.f_code.co_name == 'run':
+                            test = frame.f_locals.get('self', None)
+                            if isinstance(test, Test):
+                                for frame, *_ in traceback.walk_tb(tb):
+                                    if test.fn.__code__ is frame.f_code:
+                                        error.error_line = frame.f_lineno
+                                        break
+                                else:
+                                    continue
+                                break
+                    else:
+                        error.error_line = -1
                 result = TestResult(
                     self,
                     outcome,
